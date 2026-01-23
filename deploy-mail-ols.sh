@@ -74,7 +74,7 @@ ensure_hostname() {
 
   # Ensure /etc/hosts has a clean 127.0.1.1 entry
   sed -i '/^127\.0\.1\.1[[:space:]]/d' /etc/hosts
-  echo "127.0.1.1 ${MAIL_HOST} ${MAIL_HOST%%.*}" >> /etc/hosts
+  printf "127.0.1.1 ${MAIL_HOST} ${MAIL_HOST%%.*}" >> /etc/hosts
 }
 
 install_packages() {
