@@ -62,12 +62,19 @@ gen_password() {
 
 ensure_hostname() {
   echo "[*] Setting hostname to: ${MAIL_HOST}"
+
+  # Basic validation (must contain at least one dot)
+  if [[ "${MAIL_HOST}" != *.* ]]; then
+    echo "[!] Invalid domain/hostname: ${MAIL_HOST}"
+    echo "    Example: mail.example.com"
+    exit 1
+  fi
+
   hostnamectl set-hostname "${MAIL_HOST}"
 
-  # Ensure local hostname resolution exists
-  if ! grep -q "${MAIL_HOST}" /etc/hosts; then
-    echo "127.0.1.1 ${MAIL_HOST}" >> /etc/hosts
-  fi
+  # Ensure /etc/hosts has a clean 127.0.1.1 entry
+  sed -i '/^127\.0\.1\.1[[:space:]]/d' /etc/hosts
+  echo "127.0.1.1 ${MAIL_HOST} ${MAIL_HOST%%.*}" >> /etc/hosts
 }
 
 install_packages() {
