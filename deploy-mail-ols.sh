@@ -77,6 +77,7 @@ ensure_hostname() {
 
   # Ensure file ends with exactly ONE newline before appending
   tail -c1 /etc/hosts | read -r _ || echo >> /etc/hosts
+  tail -c1 /etc/hosts | read -r _ || echo >> /etc/hosts
 
   # Append new entry on its own line
   echo "127.0.1.1 ${MAIL_HOST} ${MAIL_HOST%%.*}" >> /etc/hosts
