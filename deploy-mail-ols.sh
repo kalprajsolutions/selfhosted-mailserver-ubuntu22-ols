@@ -762,7 +762,12 @@ print_dns_records() {
   echo
   echo "DKIM (TXT):"
   local DKIM_TXT
-  DKIM_TXT=$(awk -F'"' '/TXT/ {for (i=2;i<=NF;i+=2) printf "%s", $i}' "/etc/opendkim/keys/${DOMAIN}/${DKIM_SELECTOR}.txt") 2>/dev/null | tr -d '\n' | sed 's/.*(//' | sed 's/)//' || echo 'ERROR: Could not read DKIM key')"
+
+  DKIM_TXT=$(
+    tr -d '\n' < "/etc/opendkim/keys/${DOMAIN}/${DKIM_SELECTOR}.txt" |
+    sed -e 's/.*(//' -e 's/).*//' -e 's/"//g'
+  )
+
   echo "  ${DKIM_SELECTOR}._domainkey.${DOMAIN} TXT \"${DKIM_TXT}\""
   echo
   echo "Deliverability MUST:"
