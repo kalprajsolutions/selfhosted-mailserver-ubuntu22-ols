@@ -566,6 +566,7 @@ setup_opendkim() {
   cat > /etc/opendkim.conf <<EOF
 Syslog                  yes
 UMask                   002
+UserID                  opendkim
 Canonicalization        relaxed/simple
 Mode                    sv
 SubDomains              no
