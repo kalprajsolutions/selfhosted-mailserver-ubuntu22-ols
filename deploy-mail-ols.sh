@@ -329,8 +329,8 @@ setup_postfix() {
   # DKIM milter - socket inside Postfix chroot for compatibility
   postconf -e "milter_default_action=accept"
   postconf -e "milter_protocol=6"
-  postconf -e "smtpd_milters=unix:/var/spool/postfix/opendkim/opendkim.sock"
-  postconf -e "non_smtpd_milters=unix:/var/spool/postfix/opendkim/opendkim.sock"
+  postconf -e "smtpd_milters=unix:/opendkim/opendkim.sock"
+  postconf -e "non_smtpd_milters=unix:/opendkim/opendkim.sock"
 
   # Enable submission ports
   if ! grep -q "^submission" /etc/postfix/master.cf; then
