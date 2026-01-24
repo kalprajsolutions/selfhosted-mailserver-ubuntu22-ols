@@ -321,7 +321,6 @@ setup_postfix() {
   postconf -e "smtpd_sasl_security_options=noanonymous"
   postconf -e "broken_sasl_auth_clients=yes"
   postconf -e "mailbox_transport=lmtp:unix:private/dovecot-lmtp"
-  postconf -e "smtputf8-enable=no"
 
   # No open relay
   postconf -e "smtpd_recipient_restrictions=permit_sasl_authenticated,permit_mynetworks,reject_unauth_destination"
@@ -330,8 +329,8 @@ setup_postfix() {
   # DKIM milter - socket inside Postfix chroot for compatibility
   postconf -e "milter_default_action=accept"
   postconf -e "milter_protocol=6"
-  postconf -e "smtpd_milters=unix:/opendkim/opendkim.sock"
-  postconf -e "non_smtpd_milters=unix:/opendkim/opendkim.sock"
+  postconf -e "smtpd_milters=unix:/var/spool/postfix/opendkim/opendkim.sock"
+  postconf -e "non_smtpd_milters=unix:/var/spool/postfix/opendkim/opendkim.sock"
 
   # Enable submission ports
   if ! grep -q "^submission" /etc/postfix/master.cf; then
