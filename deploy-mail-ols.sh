@@ -651,6 +651,11 @@ verify_renewal_timer() {
 }
 
 enable_lsws_stop_start_hooks() {
+  if ! systemctl list-unit-files | grep -q '^lsws\.service'; then
+    echo "[*] OpenLiteSpeed (lsws) not found, skipping stop/start renewal hooks"
+    return 0
+  fi
+
   echo "[*] Setting up pre/post hooks to free port 80 for standalone renewals..."
   mkdir -p /etc/letsencrypt/renewal-hooks/pre
   mkdir -p /etc/letsencrypt/renewal-hooks/post
