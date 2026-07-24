@@ -640,6 +640,34 @@ EOF
   chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-mail.sh
 }
 
+# after enable_cert_renew_hook()
+verify_renewal_timer() {
+  if systemctl list-timers --all | grep -q certbot; then
+    systemctl enable --now certbot.timer
+    echo "[+] certbot.timer enabled"
+  else
+    echo "[!] No certbot systemd timer found — check /etc/cron.d/certbot exists"
+  fi
+}
+
+enable_lsws_stop_start_hooks() {
+  echo "[*] Setting up pre/post hooks to free port 80 for standalone renewals..."
+  mkdir -p /etc/letsencrypt/renewal-hooks/pre
+  mkdir -p /etc/letsencrypt/renewal-hooks/post
+
+  cat > /etc/letsencrypt/renewal-hooks/pre/stop-web.sh <<'EOF'
+#!/usr/bin/env bash
+systemctl stop lsws
+EOF
+  chmod +x /etc/letsencrypt/renewal-hooks/pre/stop-web.sh
+
+  cat > /etc/letsencrypt/renewal-hooks/post/start-web.sh <<'EOF'
+#!/usr/bin/env bash
+systemctl start lsws
+EOF
+  chmod +x /etc/letsencrypt/renewal-hooks/post/start-web.sh
+}
+
 restart_services() {
   echo "[*] Restarting services..."
   
@@ -806,6 +834,8 @@ main() {
   fix_opendkim_runtime
   fix_opendkim_systemd_pid_issue
   enable_cert_renew_hook
+  enable_lsws_stop_start_hooks
+  verify_renewal_timer
   configure_ufw
   restart_services
   verify_ports
