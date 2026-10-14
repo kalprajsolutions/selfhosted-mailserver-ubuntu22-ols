@@ -168,6 +168,7 @@ After installation, create as many extra mailboxes as you need with `mailbox.sh`
 ```bash
 sudo ./mailbox.sh add alice              # INDEPENDENT mailbox (own Maildir)
 sudo ./mailbox.sh add dave --alias-to warmup   # ALIAS: mail lands in warmup@ inbox
+sudo ./mailbox.sh add dave --alias-to warmup --same-password   # ... reusing warmup's password
 sudo ./mailbox.sh add sales@server-1.example.net   # must match installed domain
 sudo ./mailbox.sh alias bob warmup       # convert existing mailbox to alias
 sudo ./mailbox.sh unalias bob            # convert back to own Maildir
@@ -180,7 +181,7 @@ sudo ./mailbox.sh delete bob --purge     # also deletes the Maildir
 Two delivery modes:
 
 * **Independent (default):** a real mailbox like `warmup@` — own login, own Maildir receiving its own mail, DKIM-signed automatically.
-* **Alias (`--alias-to warmup` or the `alias` command):** keeps its own login (can send via SMTP as that address), but inbound mail is delivered to the target mailbox. Useful for send-only identities whose replies should collect in a central inbox. The IMAP inbox of an alias user stays empty. Aliases are per-address entries in `virtual_alias_maps` — never an `@domain` catch-all.
+* **Alias (`--alias-to warmup` or the `alias` command):** keeps its own login (can send via SMTP as that address), but inbound mail is delivered to the target mailbox. Useful for send-only identities whose replies should collect in a central inbox. The IMAP inbox of an alias user stays empty. Aliases are per-address entries in `virtual_alias_maps` — never an `@domain` catch-all. Add `--same-password` to reuse the target's saved password instead of generating a new one (handy when one credential per server is enough); the target's password file must exist and still authenticate, and the password is also saved to the new mailbox's own `/root` password file.
 
 ### One-liner usage (no download, same as the installer)
 
@@ -195,7 +196,7 @@ All commands work the same way:
 ```bash
 MBX=https://raw.githubusercontent.com/kalprajsolutions/selfhosted-mailserver-ubuntu22-ols/main/mailbox.sh
 
-curl -fsSL "$MBX" | sudo bash -s add dave --alias-to warmup
+curl -fsSL "$MBX" | sudo bash -s add dave --alias-to warmup --same-password
 curl -fsSL "$MBX" | sudo bash -s alias bob warmup
 curl -fsSL "$MBX" | sudo bash -s unalias bob
 curl -fsSL "$MBX" | sudo bash -s list
