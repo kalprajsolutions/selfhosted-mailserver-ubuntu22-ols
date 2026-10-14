@@ -163,24 +163,32 @@ Mailbox path:
 
 ## Managing Additional Mailboxes (mailbox.sh)
 
-After installation, create as many extra mailboxes as you need with `mailbox.sh`. It uses the same file layout as the installer (`/etc/dovecot/passwd`, `/etc/postfix/vmailbox`, `/var/mail/vhosts/`) and never edits `main.cf` or adds a catch-all — unknown recipients keep getting rejected.
+After installation, create as many extra mailboxes as you need with `mailbox.sh`. It uses the same file layout as the installer (`/etc/dovecot/passwd`, `/etc/postfix/vmailbox`, `/var/mail/vhosts/`) and never adds a catch-all — unknown recipients keep getting rejected.
 
 ```bash
-sudo ./mailbox.sh add alice              # alice@<installed-domain>
+sudo ./mailbox.sh add alice              # INDEPENDENT mailbox (own Maildir)
+sudo ./mailbox.sh add dave --alias-to warmup   # ALIAS: mail lands in warmup@ inbox
 sudo ./mailbox.sh add sales@server-1.example.net   # must match installed domain
+sudo ./mailbox.sh alias bob warmup       # convert existing mailbox to alias
+sudo ./mailbox.sh unalias bob            # convert back to own Maildir
 sudo ./mailbox.sh list
 sudo ./mailbox.sh passwd alice           # new random password
 sudo ./mailbox.sh delete bob             # removes login + mail routing
 sudo ./mailbox.sh delete bob --purge     # also deletes the Maildir
 ```
 
+Two delivery modes:
+
+* **Independent (default):** a real mailbox like `warmup@` — own login, own Maildir receiving its own mail, DKIM-signed automatically.
+* **Alias (`--alias-to warmup` or the `alias` command):** keeps its own login (can send via SMTP as that address), but inbound mail is delivered to the target mailbox. Useful for send-only identities whose replies should collect in a central inbox. The IMAP inbox of an alias user stays empty. Aliases are per-address entries in `virtual_alias_maps` — never an `@domain` catch-all.
+
 Notes:
 
 * The mail domain is **auto-detected** from `postconf virtual_mailbox_domains`. Since `deploy-mail-ols.sh` uses its install argument as the mail domain, a server installed as `mail.example.com` hosts `@mail.example.com` addresses — the script refuses any other domain instead of misconfiguring the server.
 * Passwords are generated (24+ chars) and saved to `/root/<domain>_<local-part>_password.txt` (mode 600), same convention as the installer.
-* Every mailbox gets the standard folders (`Sent`, `Drafts`, `Trash`, `Junk`) and is DKIM-signed automatically (the installer signs `*@<domain>`).
-* Each add is verified before reporting success (`postmap -q` + `doveadm auth test`).
-* On a fleet, run it remotely: `scp mailbox.sh root@<server>:/root/ && ssh root@<server> '/root/mailbox.sh add alice'`
+* `main.cf` is touched only to register `virtual_alias_maps` when you create the first alias, and any existing alias maps are preserved (ours is appended).
+* Alias targets must already exist (no accepted-then-bounced mail), self-aliases and alias loops are rejected, and every change is verified (`postmap -q` + `doveadm auth test`) before success is reported.
+* On a fleet, run it remotely: `scp mailbox.sh root@<server>:/root/ && ssh root@<server> '/root/mailbox.sh add dave --alias-to warmup'`
 
 ---
 
