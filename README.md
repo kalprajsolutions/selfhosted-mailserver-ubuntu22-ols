@@ -182,6 +182,35 @@ Two delivery modes:
 * **Independent (default):** a real mailbox like `warmup@` — own login, own Maildir receiving its own mail, DKIM-signed automatically.
 * **Alias (`--alias-to warmup` or the `alias` command):** keeps its own login (can send via SMTP as that address), but inbound mail is delivered to the target mailbox. Useful for send-only identities whose replies should collect in a central inbox. The IMAP inbox of an alias user stays empty. Aliases are per-address entries in `virtual_alias_maps` — never an `@domain` catch-all.
 
+### One-liner usage (no download, same as the installer)
+
+Run any command directly from this repo on a server:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kalprajsolutions/selfhosted-mailserver-ubuntu22-ols/main/mailbox.sh | sudo bash -s add alice
+```
+
+All commands work the same way:
+
+```bash
+MBX=https://raw.githubusercontent.com/kalprajsolutions/selfhosted-mailserver-ubuntu22-ols/main/mailbox.sh
+
+curl -fsSL "$MBX" | sudo bash -s add dave --alias-to warmup
+curl -fsSL "$MBX" | sudo bash -s alias bob warmup
+curl -fsSL "$MBX" | sudo bash -s unalias bob
+curl -fsSL "$MBX" | sudo bash -s list
+curl -fsSL "$MBX" | sudo bash -s passwd alice
+curl -fsSL "$MBX" | sudo bash -s delete bob --purge
+```
+
+Across a fleet (`servers.txt` with one `root@IP` per line):
+
+```bash
+while IFS= read -r srv; do
+  ssh -n "$srv" "curl -fsSL $MBX | bash -s add dave --alias-to warmup"
+done < servers.txt
+```
+
 Notes:
 
 * The mail domain is **auto-detected** from `postconf virtual_mailbox_domains`. Since `deploy-mail-ols.sh` uses its install argument as the mail domain, a server installed as `mail.example.com` hosts `@mail.example.com` addresses — the script refuses any other domain instead of misconfiguring the server.
