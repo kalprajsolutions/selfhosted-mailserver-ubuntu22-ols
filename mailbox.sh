@@ -9,6 +9,8 @@ IFS=$'\n\t'
 # Usage:
 #   sudo ./mailbox.sh add alice                 # independent mailbox (own Maildir)
 #   sudo ./mailbox.sh add dave --alias-to warmup# inbound mail -> warmup@ inbox
+#   sudo ./mailbox.sh add dave --alias-to warmup --same-password
+#                                               # ... and reuse warmup's password
 #   sudo ./mailbox.sh add alice@mail.host.tld   # full address, must match installed domain
 #   sudo ./mailbox.sh alias dave warmup         # convert existing mailbox to alias
 #   sudo ./mailbox.sh unalias dave              # convert back to own Maildir
@@ -70,11 +72,13 @@ usage() {
 mailbox.sh - manage virtual mailboxes created by deploy-mail-ols.sh
 
 Commands:
-  add <local-part | user@domain> [--alias-to <target>]
+  add <local-part | user@domain> [--alias-to <target>] [--same-password]
                                    Create mailbox. Independent by default
                                    (own Maildir); --alias-to delivers inbound
                                    mail to the target mailbox instead
-                                   (e.g. --alias-to warmup)
+                                   (e.g. --alias-to warmup). --same-password
+                                   (with --alias-to) reuses the target's
+                                   saved password instead of a new random one
   alias <mailbox> <target>         Redirect an existing mailbox's mail to target
   unalias <mailbox>                Restore delivery to the mailbox's own Maildir
   list                             List mailboxes, delivery mode and unread count
@@ -85,6 +89,7 @@ Commands:
 Examples:
   sudo ./mailbox.sh add alice
   sudo ./mailbox.sh add dave --alias-to warmup
+  sudo ./mailbox.sh add dave --alias-to warmup --same-password
   sudo ./mailbox.sh add sales@server-1.example.net
   sudo ./mailbox.sh alias bob warmup@server-1.example.net
   sudo ./mailbox.sh unalias bob
@@ -268,8 +273,23 @@ ensure_alias_map_configured() {
   fi
 }
 
+# Print the alias target's password, reusing its saved password file.
+# Fails hard if the file is missing or no longer authenticates (stale).
+target_password() {
+  local tlocal="${TARGET_EMAIL%%@*}"
+  local tfile="${PASSWORD_DIR}/${DOMAIN}_${tlocal}_password.txt"
+  [[ -f "$tfile" ]] || \
+    die "no saved password for ${TARGET_EMAIL} (${tfile}); reset it first: $0 passwd ${tlocal}"
+  local pass
+  pass="$(head -n1 "$tfile")"
+  [[ -n "$pass" ]] || die "password file for ${TARGET_EMAIL} is empty"
+  doveadm auth test "$TARGET_EMAIL" "$pass" >/dev/null 2>&1 || \
+    die "saved password for ${TARGET_EMAIL} no longer authenticates (stale file); reset it first: $0 passwd ${tlocal}"
+  printf '%s' "$pass"
+}
+
 cmd_add() {
-  local input="${1:-}" alias_arg=""
+  local input="${1:-}" alias_arg="" same_pass="no"
   [[ -n "$input" ]] || die "missing mailbox name (see: $0 help)"
   [[ "$input" != -* ]] || die "missing mailbox name before options"
   shift || true
@@ -278,9 +298,13 @@ cmd_add() {
       --alias-to)
         [[ $# -ge 2 ]] || die "--alias-to needs a target mailbox"
         alias_arg="$2"; shift 2 ;;
+      --same-password) same_pass="yes"; shift ;;
       *) die "unknown option: $1 (see: $0 help)" ;;
     esac
   done
+  if [[ "$same_pass" == "yes" && -z "$alias_arg" ]]; then
+    die "--same-password is only valid together with --alias-to"
+  fi
 
   resolve_user "$input"
   if [[ -n "$alias_arg" ]]; then
@@ -291,7 +315,12 @@ cmd_add() {
   echo "[*] Creating mailbox: ${EMAIL}"
 
   local pass hash mapped
-  pass="$(gen_password)"
+  if [[ "$same_pass" == "yes" ]]; then
+    pass="$(target_password)"
+    echo "[*] Reusing password of ${TARGET_EMAIL}"
+  else
+    pass="$(gen_password)"
+  fi
   hash="$(doveadm pw -s SHA512-CRYPT -p "$pass")"
 
   upsert_passwd_entry "$hash"
@@ -323,8 +352,12 @@ cmd_add() {
   systemctl reload dovecot 2>/dev/null || true
 
   echo "[+] Mailbox ready: ${EMAIL}"
-  echo "    Password: ${pass}"
-  echo "    Saved to: ${PASSWORD_FILE_SAVED}"
+  if [[ "$same_pass" == "yes" ]]; then
+    echo "    Password: same as ${TARGET_EMAIL} (saved to: ${PASSWORD_FILE_SAVED})"
+  else
+    echo "    Password: ${pass}"
+    echo "    Saved to: ${PASSWORD_FILE_SAVED}"
+  fi
   if [[ -n "$alias_arg" ]]; then
     echo "    Delivery: mail to ${EMAIL} lands in ${TARGET_EMAIL}"
     echo "    Login still works (send as this address; IMAP inbox stays empty)"
