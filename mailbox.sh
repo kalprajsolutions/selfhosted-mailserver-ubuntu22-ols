@@ -199,6 +199,25 @@ mailbox_exists_in_passwd() {
   awk -F: -v u="$1" '$1 == u { found = 1 } END { exit !found }' "$PASSWD_FILE" 2>/dev/null
 }
 
+# doveadm auth test with freshness handling: a passwd-file entry written in
+# the same second as the test can be missed by Dovecot's cached view of the
+# file (mtime granularity), so reload and retry before declaring failure.
+verify_auth() {
+  local email="$1" pass="$2" out i
+  for i in 1 2 3; do
+    if out="$(doveadm auth test "$email" "$pass" 2>&1)"; then
+      return 0
+    fi
+    if [[ $i -lt 3 ]]; then
+      sleep 1
+      systemctl reload dovecot 2>/dev/null || true
+    fi
+  done
+  echo "[!] doveadm auth test ${email} failed after 3 attempts:" >&2
+  echo "$out" >&2
+  return 1
+}
+
 # Sets TARGET_EMAIL from "warmup" or "warmup@<domain>"
 resolve_target() {
   local input="${1:-}" dom re
@@ -283,7 +302,7 @@ target_password() {
   local pass
   pass="$(head -n1 "$tfile")"
   [[ -n "$pass" ]] || die "password file for ${TARGET_EMAIL} is empty"
-  doveadm auth test "$TARGET_EMAIL" "$pass" >/dev/null 2>&1 || \
+  verify_auth "$TARGET_EMAIL" "$pass" || \
     die "saved password for ${TARGET_EMAIL} no longer authenticates (stale file); reset it first: $0 passwd ${tlocal}"
   printf '%s' "$pass"
 }
@@ -344,12 +363,11 @@ cmd_add() {
     [[ "$mapped" == "$TARGET_EMAIL" ]] || \
       die "verification failed: ${EMAIL} does not resolve to ${TARGET_EMAIL}"
   fi
-  doveadm auth test "$EMAIL" "$pass" >/dev/null 2>&1 || \
-    die "verification failed: doveadm auth test ${EMAIL}"
-
   save_password "$pass"
+  verify_auth "$EMAIL" "$pass" || \
+    die "verification failed for ${EMAIL} — mailbox entries were already written. Re-run this command (idempotent) or test manually: doveadm auth test '${EMAIL}' \"\$(head -n1 ${PASSWORD_FILE_SAVED})\""
+
   systemctl reload postfix 2>/dev/null || true
-  systemctl reload dovecot 2>/dev/null || true
 
   echo "[+] Mailbox ready: ${EMAIL}"
   if [[ "$same_pass" == "yes" ]]; then
@@ -404,9 +422,9 @@ cmd_passwd() {
   hash="$(doveadm pw -s SHA512-CRYPT -p "$pass")"
 
   upsert_passwd_entry "$hash"
-  doveadm auth test "$EMAIL" "$pass" >/dev/null 2>&1 || \
-    die "verification failed: doveadm auth test ${EMAIL}"
   save_password "$pass"
+  verify_auth "$EMAIL" "$pass" || \
+    die "verification failed for ${EMAIL} — the new password is already active. Re-run this command (idempotent) or test manually: doveadm auth test '${EMAIL}' \"\$(head -n1 ${PASSWORD_FILE_SAVED})\""
 
   echo "[+] Password reset for: ${EMAIL}"
   echo "    Password: ${pass}"
