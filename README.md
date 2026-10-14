@@ -169,6 +169,7 @@ After installation, create as many extra mailboxes as you need with `mailbox.sh`
 sudo ./mailbox.sh add alice              # INDEPENDENT mailbox (own Maildir)
 sudo ./mailbox.sh add dave --alias-to warmup   # ALIAS: mail lands in warmup@ inbox
 sudo ./mailbox.sh add dave --alias-to warmup --same-password   # ... reusing warmup's password
+sudo ./mailbox.sh add dave,alice,john --alias-to warmup --same-password   # BULK
 sudo ./mailbox.sh add sales@server-1.example.net   # must match installed domain
 sudo ./mailbox.sh alias bob warmup       # convert existing mailbox to alias
 sudo ./mailbox.sh unalias bob            # convert back to own Maildir
@@ -177,6 +178,8 @@ sudo ./mailbox.sh passwd alice           # new random password
 sudo ./mailbox.sh delete bob             # removes login + mail routing
 sudo ./mailbox.sh delete bob --purge     # also deletes the Maildir
 ```
+
+**Bulk add:** names can be comma- or space-separated (`add dave,alice,john` or `add dave alice john`). Flags apply to every mailbox; without `--same-password` each mailbox gets its own random password. A bad name fails alone — the rest are still created — and the command exits non-zero with a failed list, so fleet loops can retry safely (re-runs are idempotent).
 
 Two delivery modes:
 
@@ -197,6 +200,7 @@ All commands work the same way:
 MBX=https://raw.githubusercontent.com/kalprajsolutions/selfhosted-mailserver-ubuntu22-ols/main/mailbox.sh
 
 curl -fsSL "$MBX" | sudo bash -s add dave --alias-to warmup --same-password
+curl -fsSL "$MBX" | sudo bash -s add dave,alice,john --alias-to warmup --same-password
 curl -fsSL "$MBX" | sudo bash -s alias bob warmup
 curl -fsSL "$MBX" | sudo bash -s unalias bob
 curl -fsSL "$MBX" | sudo bash -s list

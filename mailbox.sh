@@ -79,6 +79,11 @@ Commands:
                                    (e.g. --alias-to warmup). --same-password
                                    (with --alias-to) reuses the target's
                                    saved password instead of a new random one
+  add <name,name2,...> [same flags] Bulk add: comma or space separated;
+                                   flags apply to all; without --same-password
+                                   each mailbox gets its own random password;
+                                   a bad name fails alone, exit code is
+                                   non-zero if any failed
   alias <mailbox> <target>         Redirect an existing mailbox's mail to target
   unalias <mailbox>                Restore delivery to the mailbox's own Maildir
   list                             List mailboxes, delivery mode and unread count
@@ -90,6 +95,7 @@ Examples:
   sudo ./mailbox.sh add alice
   sudo ./mailbox.sh add dave --alias-to warmup
   sudo ./mailbox.sh add dave --alias-to warmup --same-password
+  sudo ./mailbox.sh add dave,alice,john --alias-to warmup --same-password
   sudo ./mailbox.sh add sales@server-1.example.net
   sudo ./mailbox.sh alias bob warmup@server-1.example.net
   sudo ./mailbox.sh unalias bob
@@ -307,36 +313,28 @@ target_password() {
   printf '%s' "$pass"
 }
 
-cmd_add() {
-  local input="${1:-}" alias_arg="" same_pass="no"
-  [[ -n "$input" ]] || die "missing mailbox name (see: $0 help)"
-  [[ "$input" != -* ]] || die "missing mailbox name before options"
-  shift || true
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --alias-to)
-        [[ $# -ge 2 ]] || die "--alias-to needs a target mailbox"
-        alias_arg="$2"; shift 2 ;;
-      --same-password) same_pass="yes"; shift ;;
-      *) die "unknown option: $1 (see: $0 help)" ;;
-    esac
-  done
-  if [[ "$same_pass" == "yes" && -z "$alias_arg" ]]; then
-    die "--same-password is only valid together with --alias-to"
-  fi
+# Creates ONE mailbox (name = local part or user@domain). Called directly for
+# single adds, and inside a subshell per user for bulk adds (QUIET=1) so one
+# failure cannot abort the rest. Relies on cmd_add's alias_arg/same_pass.
+create_mailbox() {
+  local name="${1:-}"
+  resolve_user "$name"
 
-  resolve_user "$input"
   if [[ -n "$alias_arg" ]]; then
     resolve_target "$alias_arg"
     validate_alias_request
   fi
 
-  echo "[*] Creating mailbox: ${EMAIL}"
+  if [[ "${QUIET:-0}" != "1" ]]; then
+    echo "[*] Creating mailbox: ${EMAIL}"
+  fi
 
   local pass hash mapped
   if [[ "$same_pass" == "yes" ]]; then
     pass="$(target_password)"
-    echo "[*] Reusing password of ${TARGET_EMAIL}"
+    if [[ "${QUIET:-0}" != "1" ]]; then
+      echo "[*] Reusing password of ${TARGET_EMAIL}"
+    fi
   else
     pass="$(gen_password)"
   fi
@@ -369,6 +367,15 @@ cmd_add() {
 
   systemctl reload postfix 2>/dev/null || true
 
+  if [[ "${QUIET:-0}" == "1" ]]; then
+    if [[ -n "$alias_arg" ]]; then
+      echo "[+] ${EMAIL} -> ${TARGET_EMAIL}"
+    else
+      echo "[+] ${EMAIL} (own mailbox)"
+    fi
+    return 0
+  fi
+
   echo "[+] Mailbox ready: ${EMAIL}"
   if [[ "$same_pass" == "yes" ]]; then
     echo "    Password: same as ${TARGET_EMAIL} (saved to: ${PASSWORD_FILE_SAVED})"
@@ -384,6 +391,52 @@ cmd_add() {
     echo "    IMAP:     $(postconf -h myhostname 2>/dev/null || echo "$DOMAIN"):993  SMTP: :587"
   fi
   echo "    Unknown recipients are still rejected (no catch-all)."
+}
+
+cmd_add() {
+  local alias_arg="" same_pass="no"
+  local -a names=() parts
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --alias-to)
+        [[ $# -ge 2 ]] || die "--alias-to needs a target mailbox"
+        alias_arg="$2"; shift 2 ;;
+      --same-password) same_pass="yes"; shift ;;
+      -*) die "unknown option: $1 (see: $0 help)" ;;
+      *)
+        # Positional: a name, or comma-separated names (spaces also work)
+        IFS=',' read -r -a parts <<< "$1"
+        names+=("${parts[@]}")
+        shift ;;
+    esac
+  done
+  [[ ${#names[@]} -gt 0 ]] || die "missing mailbox name (see: $0 help)"
+  if [[ "$same_pass" == "yes" && -z "$alias_arg" ]]; then
+    die "--same-password is only valid together with --alias-to"
+  fi
+
+  if [[ ${#names[@]} -eq 1 ]]; then
+    create_mailbox "${names[0]}"
+    return 0
+  fi
+
+  # Bulk: each user in its own subshell so a bad name doesn't kill the rest
+  local n ok=0
+  local -a failed=()
+  for n in "${names[@]}"; do
+    if ( QUIET=1 create_mailbox "$n" ); then
+      ok=$((ok + 1))
+    else
+      failed+=("$n")
+      echo "[!] FAILED: ${n}"
+    fi
+  done
+  echo
+  echo "[+] Bulk add finished: ${ok} created, ${#failed[@]} failed"
+  if [[ ${#failed[@]} -gt 0 ]]; then
+    printf '[!] Failed: %s\n' "${failed[*]}"
+    exit 1
+  fi
 }
 
 cmd_list() {
