@@ -161,6 +161,29 @@ Mailbox path:
 
 ---
 
+## Managing Additional Mailboxes (mailbox.sh)
+
+After installation, create as many extra mailboxes as you need with `mailbox.sh`. It uses the same file layout as the installer (`/etc/dovecot/passwd`, `/etc/postfix/vmailbox`, `/var/mail/vhosts/`) and never edits `main.cf` or adds a catch-all — unknown recipients keep getting rejected.
+
+```bash
+sudo ./mailbox.sh add alice              # alice@<installed-domain>
+sudo ./mailbox.sh add sales@server-1.example.net   # must match installed domain
+sudo ./mailbox.sh list
+sudo ./mailbox.sh passwd alice           # new random password
+sudo ./mailbox.sh delete bob             # removes login + mail routing
+sudo ./mailbox.sh delete bob --purge     # also deletes the Maildir
+```
+
+Notes:
+
+* The mail domain is **auto-detected** from `postconf virtual_mailbox_domains`. Since `deploy-mail-ols.sh` uses its install argument as the mail domain, a server installed as `mail.example.com` hosts `@mail.example.com` addresses — the script refuses any other domain instead of misconfiguring the server.
+* Passwords are generated (24+ chars) and saved to `/root/<domain>_<local-part>_password.txt` (mode 600), same convention as the installer.
+* Every mailbox gets the standard folders (`Sent`, `Drafts`, `Trash`, `Junk`) and is DKIM-signed automatically (the installer signs `*@<domain>`).
+* Each add is verified before reporting success (`postmap -q` + `doveadm auth test`).
+* On a fleet, run it remotely: `scp mailbox.sh root@<server>:/root/ && ssh root@<server> '/root/mailbox.sh add alice'`
+
+---
+
 ## Mail Client Settings (Thunderbird / Outlook)
 
 ### Incoming Mail (IMAP)
@@ -276,7 +299,7 @@ sudo tail -n 100 /var/log/mail.log
 
 ## Roadmap
 
-* [ ] Multi-mailbox support (CLI to add users)
+* [x] Multi-mailbox support (`mailbox.sh`)
 * [ ] Optional Fail2ban integration
 * [ ] Optional Rspamd installation
 * [ ] Debian 12 support
