@@ -83,7 +83,8 @@ Commands:
                                    flags apply to all; without --same-password
                                    each mailbox gets its own random password;
                                    a bad name fails alone, exit code is
-                                   non-zero if any failed
+                                   non-zero if any failed. Idempotent: re-runs
+                                   never duplicate, they just refresh passwords
   alias <mailbox> <target>         Redirect an existing mailbox's mail to target
   unalias <mailbox>                Restore delivery to the mailbox's own Maildir
   list                             List mailboxes, delivery mode and unread count

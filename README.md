@@ -179,7 +179,9 @@ sudo ./mailbox.sh delete bob             # removes login + mail routing
 sudo ./mailbox.sh delete bob --purge     # also deletes the Maildir
 ```
 
-**Bulk add:** names can be comma- or space-separated (`add dave,alice,john` or `add dave alice john`). Flags apply to every mailbox; without `--same-password` each mailbox gets its own random password. A bad name fails alone — the rest are still created — and the command exits non-zero with a failed list, so fleet loops can retry safely (re-runs are idempotent).
+**Bulk add:** names can be comma- or space-separated (`add dave,alice,john` or `add dave alice john`). Flags apply to every mailbox; without `--same-password` each mailbox gets its own random password. A bad name fails alone — the rest are still created — and the command exits non-zero with a failed list, so fleet loops can retry safely.
+
+**Safe to re-run any number of times:** every `add` is an exact-field upsert, not an append — running the same bulk command repeatedly (or from a cron/fleet loop) never creates duplicate mailboxes, aliases, or map entries and exits 0 each time; existing mailboxes simply get their password refreshed (from warmup with `--same-password`, or a new random one otherwise). Duplicate names within a single command also collapse to one mailbox.
 
 Two delivery modes:
 
